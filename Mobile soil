@@ -1,0 +1,570 @@
+import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
+
+void main() {
+  runApp(SoilTestingApp());
+}
+
+// ----------------------------- APP ROOT WITH THEME -----------------------------
+
+class SoilTestingApp extends StatefulWidget {
+  @override
+  _SoilTestingAppState createState() => _SoilTestingAppState();
+}
+
+class _SoilTestingAppState extends State<SoilTestingApp> {
+  bool isDarkMode = false;
+
+  void _toggleTheme() {
+    setState(() => isDarkMode = !isDarkMode);  
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+      theme: ThemeData(primarySwatch: Colors.green),
+      darkTheme: ThemeData.dark(),
+      home: SplashScreen(onThemeToggle: _toggleTheme),
+    );
+  }
+}
+
+// ----------------------------- CONSTANT STANDARDS -----------------------------
+
+class SoilStandards {
+  static const double phMinNeutral = 6.0;
+  static const double phMaxNeutral = 7.5;
+
+  static const double nitrogenLow = 50; // ppm
+  static const double nitrogenHigh = 100;
+
+  static const double phosphorusLow = 40; // ppm
+  static const double phosphorusHigh = 80;
+
+  static const double potassiumLow = 40; // ppm
+  static const double potassiumHigh = 80;
+
+  static const double moistureLow = 20; // %
+  static const double moistureHigh = 80; // %
+}
+
+// ----------------------------- SPLASH SCREEN -----------------------------
+
+class SplashScreen extends StatefulWidget {
+  final VoidCallback onThemeToggle;
+
+  const SplashScreen({Key? key, required this.onThemeToggle}) : super(key: key);
+
+  @override
+  _SplashScreenState createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen>
+    with SingleTickerProviderStateMixin {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 2), () {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              HomeScreen(onThemeToggle: widget.onThemeToggle),
+        ),
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.green.shade700,
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.eco, color: Colors.white, size: 90),
+            SizedBox(height: 20),
+            Text(
+              "Mobile Soil Testing Lab",
+              style: TextStyle(
+                  fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------------------- HOME SCREEN -----------------------------
+
+class HomeScreen extends StatelessWidget {
+  final VoidCallback onThemeToggle;
+
+  const HomeScreen({Key? key, required this.onThemeToggle}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Mobile Soil Testing Lab"),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.dark_mode),
+            onPressed: onThemeToggle,
+          )
+        ],
+      ),
+      body: Center(
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+            backgroundColor: Colors.green,
+          ),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SoilInputScreen()),
+            );
+          },
+          child: const Text("Start Analysis", style: TextStyle(fontSize: 20)),
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------------------- INPUT SCREEN -----------------------------
+
+class SoilInputScreen extends StatefulWidget {
+  const SoilInputScreen({Key? key}) : super(key: key);
+
+  @override
+  _SoilInputScreenState createState() => _SoilInputScreenState();
+}
+
+class _SoilInputScreenState extends State<SoilInputScreen> {
+  final TextEditingController phController = TextEditingController();
+  final TextEditingController nController = TextEditingController();
+  final TextEditingController pController = TextEditingController();
+  final TextEditingController kController = TextEditingController();
+  final TextEditingController moistureController = TextEditingController();
+
+  String errorText = "";
+
+  // ✅ All parameters must be filled + range checks
+  bool validateInputs() {
+    // 1. Empty check
+    if (phController.text.trim().isEmpty ||
+        nController.text.trim().isEmpty ||
+        pController.text.trim().isEmpty ||
+        kController.text.trim().isEmpty ||
+        moistureController.text.trim().isEmpty) {
+      setState(() {
+        errorText = "⚠ Please fill ALL parameters before analyzing.";
+      });
+      return false;
+    }
+
+    String? err;
+
+    // 2. Parse values
+    double? ph = double.tryParse(phController.text);
+    double? moisture = double.tryParse(moistureController.text);
+    double? n = double.tryParse(nController.text);
+    double? p = double.tryParse(pController.text);
+    double? k = double.tryParse(kController.text);
+
+    // 3. Range checks
+    if (ph == null || ph < 0 || ph > 14) {
+      err = "pH must be between 0 and 14.";
+    } else if (moisture == null || moisture < 0 || moisture > 100) {
+      err = "Moisture must be between 0% and 100%.";
+    } else if (n == null || p == null || k == null) {
+      err = "N, P and K must be valid numbers.";
+    } else if (n < 0 || p < 0 || k < 0) {
+      err = "Nitrogen, Phosphorus and Potassium cannot be negative.";
+    }
+
+    if (err != null) {
+      setState(() => errorText = "⚠ $err");
+      return false;
+    } else {
+      setState(() => errorText = "");
+      return true;
+    }
+  }
+
+  void analyzeSoil() {
+    if (!validateInputs()) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ResultScreen(
+          ph: double.parse(phController.text),
+          n: double.parse(nController.text),
+          p: double.parse(pController.text),
+          k: double.parse(kController.text),
+          moisture: double.parse(moistureController.text),
+        ),
+      ),
+    );
+  }
+
+  Widget inputBox(String label, TextEditingController c, {String? helper}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: TextField(
+        controller: c,
+        keyboardType: TextInputType.number,
+        decoration: InputDecoration(
+          labelText: label,
+          helperText: helper,
+          border: const OutlineInputBorder(),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Enter Soil Values"),
+        centerTitle: true,
+      ),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            inputBox("pH (0 - 14)", phController,
+                helper: "Neutral range: 6.0 - 7.5"),
+            inputBox("Nitrogen (ppm)", nController,
+                helper: "Good: ${SoilStandards.nitrogenLow}+ ppm"),
+            inputBox("Phosphorus (ppm)", pController,
+                helper: "Good: ${SoilStandards.phosphorusLow}+ ppm"),
+            inputBox("Potassium (ppm)", kController,
+                helper: "Good: ${SoilStandards.potassiumLow}+ ppm"),
+            inputBox("Moisture (%)", moistureController,
+                helper:
+                "Optimal: ${SoilStandards.moistureLow} - ${SoilStandards.moistureHigh}%"),
+            if (errorText.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(8),
+                child: Text(
+                  errorText,
+                  style: const TextStyle(color: Colors.red, fontSize: 15),
+                ),
+              ),
+            const SizedBox(height: 15),
+            ElevatedButton(
+              onPressed: analyzeSoil,
+              style: ElevatedButton.styleFrom(
+                padding:
+                const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                backgroundColor: Colors.green,
+              ),
+              child: const Text("Analyze", style: TextStyle(fontSize: 18)),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------------------- RESULT SCREEN -----------------------------
+
+class ResultScreen extends StatelessWidget {
+  final double ph, n, p, k, moisture;
+
+  const ResultScreen({
+    Key? key,
+    required this.ph,
+    required this.n,
+    required this.p,
+    required this.k,
+    required this.moisture,
+  }) : super(key: key);
+
+  String soilType() {
+    if (ph < SoilStandards.phMinNeutral) return "Acidic Soil";
+    if (ph > SoilStandards.phMaxNeutral) return "Alkaline Soil";
+    return "Neutral Soil";
+  }
+
+  String nutrientStatus(double value, double low, double high) {
+    if (value < low) return "Low";
+    if (value > high) return "High";
+    return "Optimal";
+  }
+
+  String overallFertility() {
+    int score = 0;
+
+    if (nutrientStatus(n, SoilStandards.nitrogenLow, SoilStandards.nitrogenHigh) ==
+        "Optimal") score++;
+    if (nutrientStatus(
+        p, SoilStandards.phosphorusLow, SoilStandards.phosphorusHigh) ==
+        "Optimal") score++;
+    if (nutrientStatus(
+        k, SoilStandards.potassiumLow, SoilStandards.potassiumHigh) ==
+        "Optimal") score++;
+    if (moisture >= SoilStandards.moistureLow &&
+        moisture <= SoilStandards.moistureHigh) score++;
+
+    if (score >= 3) return "High Fertility";
+    if (score == 2) return "Moderate Fertility";
+    return "Low Fertility";
+  }
+
+  String recommendations() {
+    StringBuffer r = StringBuffer();
+
+    if (ph < SoilStandards.phMinNeutral) {
+      r.writeln("🌱 Soil is acidic → Add agricultural lime to raise pH.");
+      r.writeln("   Suggested crops: Rice, Potato, Tomato, Tea.");
+    } else if (ph > SoilStandards.phMaxNeutral) {
+      r.writeln("🌾 Soil is alkaline → Add gypsum or organic matter.");
+      r.writeln("   Suggested crops: Barley, Cotton, Pearl Millet.");
+    } else {
+      r.writeln("🌽 Soil is neutral → Suitable for most cereals and pulses.");
+      r.writeln("   Suggested crops: Wheat, Maize, Pulses, Vegetables.");
+    }
+    r.writeln("");
+
+    String nStatus =
+    nutrientStatus(n, SoilStandards.nitrogenLow, SoilStandards.nitrogenHigh);
+    String pStatus = nutrientStatus(
+        p, SoilStandards.phosphorusLow, SoilStandards.phosphorusHigh);
+    String kStatus = nutrientStatus(
+        k, SoilStandards.potassiumLow, SoilStandards.potassiumHigh);
+
+    r.writeln("🧪 Nutrient Status:");
+    r.writeln(
+        "• Nitrogen (N): $n ppm → $nStatus (${SoilStandards.nitrogenLow}-${SoilStandards.nitrogenHigh} ppm recommended).");
+    r.writeln(
+        "• Phosphorus (P): $p ppm → $pStatus (${SoilStandards.phosphorusLow}-${SoilStandards.phosphorusHigh} ppm recommended).");
+    r.writeln(
+        "• Potassium (K): $k ppm → $kStatus (${SoilStandards.potassiumLow}-${SoilStandards.potassiumHigh} ppm recommended).");
+    r.writeln("");
+
+    if (nStatus == "Low") {
+      r.writeln("⚠ Nitrogen low → Apply Urea or other N-rich fertilizers.");
+    } else if (nStatus == "High") {
+      r.writeln(
+          "⚠ Nitrogen high → Avoid excess urea to prevent lodging and pollution.");
+    }
+
+    if (pStatus == "Low") {
+      r.writeln("⚠ Phosphorus low → Apply DAP / SSP (phosphatic fertilizers).");
+    } else if (pStatus == "High") {
+      r.writeln(
+          "⚠ Phosphorus high → Reduce P-fertilizers; excess P can lock micronutrients.");
+    }
+
+    if (kStatus == "Low") {
+      r.writeln("⚠ Potassium low → Apply MOP or potash-based fertilizers.");
+    } else if (kStatus == "High") {
+      r.writeln(
+          "⚠ Potassium high → Avoid extra potash; maintain balance with N & P.");
+    }
+    r.writeln("");
+
+    if (moisture < SoilStandards.moistureLow) {
+      r.writeln(
+          "💧 Moisture is low ($moisture%) → Improve irrigation: drip/sprinkler, mulching.");
+    } else if (moisture > SoilStandards.moistureHigh) {
+      r.writeln(
+          "💧 Moisture is high ($moisture%) → Improve drainage to avoid root rot.");
+    } else {
+      r.writeln(
+          "💧 Moisture is in optimal range ($moisture%) → Maintain current irrigation schedule.");
+    }
+    r.writeln("");
+
+    r.writeln("📚 General Recommendation:");
+    r.writeln(
+        "• Incorporate organic matter (FYM/compost) to improve structure and microbial activity.");
+    r.writeln("• Follow soil test based fertilizer application.");
+    r.writeln(
+        "• Rotate crops (cereals, pulses, oilseeds) to maintain long-term fertility.");
+
+    return r.toString();
+  }
+
+  String standardsSummary() {
+    return "Standards used (typical for many field crops):\n"
+        "• pH: Neutral 6.0 – 7.5\n"
+        "• Nitrogen (N): ${SoilStandards.nitrogenLow} – ${SoilStandards.nitrogenHigh} ppm\n"
+        "• Phosphorus (P): ${SoilStandards.phosphorusLow} – ${SoilStandards.phosphorusHigh} ppm\n"
+        "• Potassium (K): ${SoilStandards.potassiumLow} – ${SoilStandards.potassiumHigh} ppm\n"
+        "• Moisture: ${SoilStandards.moistureLow} – ${SoilStandards.moistureHigh}%";
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String fertility = overallFertility();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Soil Health Report"),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.bar_chart),
+            tooltip: "View Graphs",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => GraphsScreen(
+                    ph: ph,
+                    n: n,
+                    p: p,
+                    k: k,
+                    moisture: moisture,
+                  ),
+                ),
+              );
+            },
+          )
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Card(
+          color: Colors.green[50],
+          elevation: 4,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: SingleChildScrollView(
+              child: Text(
+                "📋 Soil Report\n\n"
+                    "Soil Type: ${soilType()}\n"
+                    "Overall Fertility: $fertility\n\n"
+                    "Recommendations:\n${recommendations()}\n\n"
+                    "📊 Standards Reference:\n${standardsSummary()}",
+                style: const TextStyle(fontSize: 16),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------------------- MULTI-GRAPH SCREEN -----------------------------
+
+class GraphsScreen extends StatelessWidget {
+  final double ph, n, p, k, moisture;
+
+  const GraphsScreen({
+    Key? key,
+    required this.ph,
+    required this.n,
+    required this.p,
+    required this.k,
+    required this.moisture,
+  }) : super(key: key);
+
+  Widget buildSingleBarChart(String label, double value, double maxY) {
+    final double clamped = value.clamp(0, maxY).toDouble();
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            "Value: ${value.toStringAsFixed(2)}   Range: 0 – $maxY",
+            style: const TextStyle(fontSize: 14),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 260,
+            child: BarChart(
+              BarChartData(
+                minY: 0,
+                maxY: maxY,
+                barGroups: [
+                  BarChartGroupData(
+                    x: 0,
+                    barRods: [
+                      BarChartRodData(
+                        toY: clamped,
+                        width: 40,
+                        borderRadius: BorderRadius.circular(6),
+                        color: Colors.green,
+                      ),
+                    ],
+                  ),
+                ],
+                gridData: FlGridData(show: true),
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                    ),
+                  ),
+                  bottomTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                ),
+                borderData: FlBorderData(show: true),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 5,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text("Soil Parameter Graphs"),
+          bottom: const TabBar(
+            isScrollable: true,
+            tabs: [
+              Tab(text: "pH"),
+              Tab(text: "Nitrogen"),
+              Tab(text: "Phosphorus"),
+              Tab(text: "Potassium"),
+              Tab(text: "Moisture"),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            buildSingleBarChart("pH (0 - 14)", ph, 14),
+            buildSingleBarChart("Nitrogen (ppm)", n, 100),
+            buildSingleBarChart("Phosphorus (ppm)", p, 100),
+            buildSingleBarChart("Potassium (ppm)", k, 100),
+            buildSingleBarChart("Moisture (%)", moisture, 100),
+          ],
+        ),
+      ),
+    );
+  }
+}
